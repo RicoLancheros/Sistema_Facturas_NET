@@ -1,0 +1,168 @@
+@page "/"
+@inject ProductoService ProductoService
+@inject CarritoService CarritoService
+@inject ISnackbar Snackbar
+
+<PageTitle>Inicio - Tienda RICO NET</PageTitle>
+
+<!-- Hero Section / Banner Principal -->
+<MudPaper Elevation="0" Class="pa-6 mb-6 text-center" Style="background: linear-gradient(135deg, #1976d2 0%, #0d47a1 100%); border-radius: 12px; max-width: 800px; margin: 0 auto;">
+    <MudText Typo="Typo.h4" Style="color: #ffd700; font-weight: bold; margin-bottom: 8px;">
+        Bienvenido a Tienda RICO
+    </MudText>
+    <MudText Typo="Typo.body1" Style="color: white; font-weight: 300;">
+        Los mejores productos de tecnología al mejor precio
+    </MudText>
+</MudPaper>
+
+<!-- Sección de Productos -->
+<div Class="mb-4">
+    <MudText Typo="Typo.h5" Style="color: #0d47a1; font-weight: bold; margin-bottom: 8px;">
+        Nuestros Productos
+    </MudText>
+</div>
+
+@if (_loading)
+{
+    <div class="text-center py-8">
+        <MudProgressCircular Color="Color.Primary" Size="Size.Large" Indeterminate="true" />
+        <MudText Typo="Typo.body1" Class="mt-4">Cargando productos...</MudText>
+    </div>
+}
+else if (_productos == null || !_productos.Any())
+{
+    <MudAlert Severity="Severity.Info" Class="my-4">No hay productos disponibles en este momento</MudAlert>
+}
+else
+{
+    <MudGrid Spacing="4">
+        @foreach (var producto in _productos)
+        {
+            <MudItem xs="12" sm="6" md="4" lg="3">
+                <MudCard Elevation="3" Style="height: 100%; border-radius: 12px; overflow: hidden; transition: transform 0.2s, box-shadow 0.2s;"
+                         Class="producto-card">
+                    <!-- Imagen del producto (simulada con un ícono grande) -->
+                    <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 48px; text-align: center;">
+                        <MudIcon Icon="@Icons.Material.Filled.Devices" Style="font-size: 6rem; color: #1976d2;" />
+                    </div>
+
+                    <MudCardContent>
+                        <MudText Typo="Typo.h6" Style="color: #0d47a1; font-weight: bold; min-height: 48px;">
+                            @producto.Nombre
+                        </MudText>
+
+                        <MudChip T="string" Size="Size.Small" Style="@GetStockStyle(producto.Cantidad)" Class="mt-2">
+                            @GetStockText(producto.Cantidad)
+                        </MudChip>
+
+                        <MudText Typo="Typo.h5" Class="mt-3" Style="color: #1976d2; font-weight: bold;">
+                            $@GetPrecioSimulado(producto.Id).ToString("N0")
+                        </MudText>
+
+                        <MudText Typo="Typo.body2" Style="color: #999; margin-top: 4px;">
+                            Disponible: @producto.Cantidad unidades
+                        </MudText>
+                    </MudCardContent>
+
+                    <MudCardActions Class="px-4 pb-4">
+                        <MudNumericField @bind-Value="@_cantidades[producto.Id]" Label="Cantidad" Min="1" Max="@producto.Cantidad"
+                                         Variant="Variant.Outlined" Style="flex: 1; margin-right: 8px;" />
+                        <MudButton Variant="Variant.Filled"
+                                   Style="background-color: #ffd700; color: #0d47a1; font-weight: bold;"
+                                   StartIcon="@Icons.Material.Filled.AddShoppingCart"
+                                   OnClick="@(() => AgregarAlCarrito(producto))"
+                                   Disabled="@(producto.Cantidad <= 0)">
+                            Agregar
+                        </MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private List<Producto>? _productos;
+    private bool _loading = true;
+    private Dictionary<int, int> _cantidades = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CargarProductos();
+    }
+
+    private async Task CargarProductos()
+    {
+        _loading = true;
+        try
+        {
+            _productos = await ProductoService.GetProductosAsync();
+            if (_productos != null)
+            {
+                foreach (var producto in _productos)
+                {
+                    _cantidades[producto.Id] = 1;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar productos: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void AgregarAlCarrito(Producto producto)
+    {
+        var cantidad = _cantidades.GetValueOrDefault(producto.Id, 1);
+        var precio = GetPrecioSimulado(producto.Id);
+
+        CarritoService.AgregarAlCarrito(producto, cantidad, precio);
+        Snackbar.Add($"✓ {producto.Nombre} agregado al carrito", Severity.Success);
+    }
+
+    private decimal GetPrecioSimulado(int productoId)
+    {
+        // Precios simulados basados en el ID del producto
+        return productoId switch
+        {
+            1 => 1500000m,
+            2 => 150000m,
+            3 => 800000m,
+            4 => 350000m,
+            5 => 1200000m,
+            6 => 2500000m,
+            7 => 450000m,
+            8 => 180000m,
+            9 => 95000m,
+            10 => 65000m,
+            _ => 99000m
+        };
+    }
+
+    private string GetStockText(int cantidad)
+    {
+        if (cantidad == 0) return "Agotado";
+        if (cantidad < 5) return "Últimas unidades";
+        if (cantidad < 10) return "Stock limitado";
+        return "Disponible";
+    }
+
+    private string GetStockStyle(int cantidad)
+    {
+        if (cantidad == 0) return "background-color: #f44336; color: white;";
+        if (cantidad < 5) return "background-color: #ff9800; color: white;";
+        if (cantidad < 10) return "background-color: #ffc107; color: #333;";
+        return "background-color: #4caf50; color: white;";
+    }
+}
+
+<style>
+    .producto-card:hover {
+        transform: translateY(-8px);
+        box-shadow: 0 12px 24px rgba(0,0,0,0.15) !important;
+    }
+</style>

@@ -1,0 +1,162 @@
+@page "/facturas"
+@inject FacturaService FacturaService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Facturas</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Consulta de Facturas</MudText>
+
+<MudPaper Class="pa-4 my-4">
+    <MudButton Variant="Variant.Filled" Color="Color.Success" Href="/crear-factura" StartIcon="@Icons.Material.Filled.Add">
+        Nueva Factura
+    </MudButton>
+</MudPaper>
+
+@if (_loading)
+{
+    <MudProgressLinear Color="Color.Tertiary" Indeterminate="true" Class="my-4" />
+}
+else if (_facturas == null || !_facturas.Any())
+{
+    <MudAlert Severity="Severity.Info">No hay facturas registradas</MudAlert>
+}
+else
+{
+    <MudTable Items="@_facturas" Hover="true" Breakpoint="Breakpoint.Sm" Dense="true">
+        <HeaderContent>
+            <MudTh>ID</MudTh>
+            <MudTh>Usuario</MudTh>
+            <MudTh>Fecha</MudTh>
+            <MudTh>Total</MudTh>
+            <MudTh>Productos</MudTh>
+            <MudTh>Acciones</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="ID">@context.Id</MudTd>
+            <MudTd DataLabel="Usuario">@context.Usuario?.Nombre</MudTd>
+            <MudTd DataLabel="Fecha">@context.Fecha.ToString("dd/MM/yyyy HH:mm")</MudTd>
+            <MudTd DataLabel="Total">
+                <MudText Typo="Typo.body2" Color="Color.Success">
+                    <strong>$@context.Total.ToString("N0")</strong>
+                </MudText>
+            </MudTd>
+            <MudTd DataLabel="Productos">
+                <MudChip T="string" Size="Size.Small">@context.Detalles.Count items</MudChip>
+            </MudTd>
+            <MudTd DataLabel="Acciones">
+                <MudIconButton Icon="@Icons.Material.Filled.Visibility" Color="Color.Info" OnClick="@(() => VerDetalles(context))" Size="Size.Small" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteFactura(context.Id))" Size="Size.Small" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@if (_detalleDialogVisible && _selectedFactura != null)
+{
+    <MudDialog IsVisible="_detalleDialogVisible" IsVisibleChanged="@((bool visible) => { _detalleDialogVisible = visible; if (!visible) _selectedFactura = null; })" Options="_dialogOptions">
+        <TitleContent>
+            <MudText Typo="Typo.h6">Detalle de Factura #@_selectedFactura.Id</MudText>
+        </TitleContent>
+        <DialogContent>
+            <MudGrid>
+                <MudItem xs="12">
+                    <MudText><strong>Usuario:</strong> @_selectedFactura.Usuario?.Nombre</MudText>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudText><strong>Fecha:</strong> @_selectedFactura.Fecha.ToString("dd/MM/yyyy HH:mm:ss")</MudText>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudDivider Class="my-2" />
+                    <MudText Typo="Typo.h6" Class="mb-2">Productos:</MudText>
+                    <MudSimpleTable Dense="true">
+                        <thead>
+                            <tr>
+                                <th>Producto</th>
+                                <th>Cantidad</th>
+                                <th>Precio Unit.</th>
+                                <th>Subtotal</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var detalle in _selectedFactura.Detalles)
+                            {
+                                <tr>
+                                    <td>@detalle.Producto?.Nombre</td>
+                                    <td>@detalle.Cantidad</td>
+                                    <td>$@detalle.PrecioUnitario.ToString("N0")</td>
+                                    <td>$@((detalle.Cantidad * detalle.PrecioUnitario).ToString("N0"))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </MudSimpleTable>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudDivider Class="my-2" />
+                    <MudText Typo="Typo.h5" Color="Color.Success" Align="Align.Right">
+                        <strong>Total: $@_selectedFactura.Total.ToString("N0")</strong>
+                    </MudText>
+                </MudItem>
+            </MudGrid>
+        </DialogContent>
+        <DialogActions>
+            <MudButton OnClick="CloseDetalleDialog" Color="Color.Primary">Cerrar</MudButton>
+        </DialogActions>
+    </MudDialog>
+}
+
+@code {
+    private List<Factura>? _facturas;
+    private bool _loading = true;
+    private bool _detalleDialogVisible = false;
+    private Factura? _selectedFactura;
+    private DialogOptions _dialogOptions = new() { MaxWidth = MaxWidth.Medium, FullWidth = true };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFacturas();
+    }
+
+    private async Task LoadFacturas()
+    {
+        _loading = true;
+        try
+        {
+            _facturas = await FacturaService.GetFacturasAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar facturas: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void VerDetalles(Factura factura)
+    {
+        _selectedFactura = factura;
+        _detalleDialogVisible = true;
+    }
+
+    private void CloseDetalleDialog()
+    {
+        _detalleDialogVisible = false;
+        _selectedFactura = null;
+    }
+
+    private async Task DeleteFactura(int id)
+    {
+        try
+        {
+            await FacturaService.DeleteFacturaAsync(id);
+            Snackbar.Add("Factura eliminada correctamente", Severity.Success);
+            await LoadFacturas();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al eliminar factura: {ex.Message}", Severity.Error);
+        }
+    }
+}

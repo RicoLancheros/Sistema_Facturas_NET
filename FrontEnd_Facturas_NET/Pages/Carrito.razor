@@ -1,0 +1,210 @@
+@page "/carrito"
+@inject CarritoService CarritoService
+@inject UsuarioService UsuarioService
+@inject FacturaService FacturaService
+@inject ISnackbar Snackbar
+@inject NavigationManager Navigation
+
+<PageTitle>Carrito - Tienda RICO NET</PageTitle>
+
+<MudText Typo="Typo.h3" Style="color: #0d47a1; font-weight: bold; margin-bottom: 24px;">
+    Mi Carrito de Compras
+</MudText>
+
+@if (!_items.Any())
+{
+    <MudPaper Class="pa-8 text-center" Elevation="2" Style="border-radius: 12px;">
+        <MudIcon Icon="@Icons.Material.Filled.ShoppingCartCheckout" Style="font-size: 6rem; color: #ccc;" />
+        <MudText Typo="Typo.h5" Class="mt-4" Style="color: #666;">Tu carrito está vacío</MudText>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/" Class="mt-4">
+            Ir a Comprar
+        </MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudGrid>
+        <MudItem xs="12" md="8">
+            <MudPaper Class="pa-4" Elevation="2" Style="border-radius: 12px;">
+                @foreach (var item in _items)
+                {
+                    <MudCard Class="mb-3" Elevation="0" Style="border: 1px solid #e0e0e0;">
+                        <MudCardContent>
+                            <MudGrid>
+                                <MudItem xs="6">
+                                    <MudText Typo="Typo.h6" Style="color: #0d47a1; font-weight: bold;">@item.ProductoNombre</MudText>
+                                    <MudText Typo="Typo.body2" Style="color: #666;">Precio unitario: $@item.PrecioUnitario.ToString("N0")</MudText>
+                                </MudItem>
+                                <MudItem xs="3">
+                                    <MudNumericField Value="item.Cantidad"
+                                                     ValueChanged="@((int newValue) => { item.Cantidad = newValue; ActualizarCarrito(); })"
+                                                     Label="Cantidad" Min="1"
+                                                     Variant="Variant.Outlined" Margin="Margin.Dense" />
+                                </MudItem>
+                                <MudItem xs="2" Class="d-flex align-center justify-end">
+                                    <MudText Typo="Typo.h6" Style="color: #1976d2; font-weight: bold;">
+                                        $@((item.Cantidad * item.PrecioUnitario).ToString("N0"))
+                                    </MudText>
+                                </MudItem>
+                                <MudItem xs="1" Class="d-flex align-center justify-end">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" Size="Size.Small"
+                                                   OnClick="@(() => EliminarItem(item.ProductoId))" />
+                                </MudItem>
+                            </MudGrid>
+                        </MudCardContent>
+                    </MudCard>
+                }
+            </MudPaper>
+        </MudItem>
+
+        <MudItem xs="12" md="4">
+            <MudPaper Class="pa-6" Elevation="3" Style="border-radius: 12px; position: sticky; top: 100px;">
+                <MudText Typo="Typo.h5" Style="color: #0d47a1; font-weight: bold; margin-bottom: 16px;">
+                    Resumen del Pedido
+                </MudText>
+
+                <MudDivider Class="my-3" />
+
+                <div class="d-flex justify-space-between mb-2">
+                    <MudText Typo="Typo.body1">Productos:</MudText>
+                    <MudText Typo="Typo.body1">@_items.Count</MudText>
+                </div>
+
+                <div class="d-flex justify-space-between mb-2">
+                    <MudText Typo="Typo.body1">Unidades:</MudText>
+                    <MudText Typo="Typo.body1">@CarritoService.ObtenerCantidadTotal()</MudText>
+                </div>
+
+                <MudDivider Class="my-3" />
+
+                <div class="d-flex justify-space-between mb-4">
+                    <MudText Typo="Typo.h5" Style="color: #0d47a1; font-weight: bold;">Total:</MudText>
+                    <MudText Typo="Typo.h4" Style="color: #1976d2; font-weight: bold;">
+                        $@CarritoService.ObtenerTotal().ToString("N0")
+                    </MudText>
+                </div>
+
+                <MudSelect T="int?" @bind-Value="_usuarioSeleccionado" Label="Seleccionar Cliente" Variant="Variant.Outlined" Class="mb-4" Required="true"
+                           Placeholder="Seleccione un cliente..."
+                           AnchorOrigin="Origin.BottomCenter">
+                    @if (_usuarios != null && _usuarios.Any())
+                    {
+                        @foreach (var usuario in _usuarios)
+                        {
+                            <MudSelectItem T="int?" Value="@usuario.Id">@usuario.Nombre</MudSelectItem>
+                        }
+                    }
+                    else
+                    {
+                        <MudSelectItem T="int?" Value="null" Disabled="true">Cargando usuarios...</MudSelectItem>
+                    }
+                </MudSelect>
+
+                <MudButton Variant="Variant.Filled" FullWidth="true" Size="Size.Large"
+                           Style="background-color: #ffd700; color: #0d47a1; font-weight: bold;"
+                           StartIcon="@Icons.Material.Filled.ShoppingCartCheckout"
+                           OnClick="RealizarCompra"
+                           Disabled="@(_procesando || !_usuarioSeleccionado.HasValue)">
+                    @if (_procesando)
+                    {
+                        <MudProgressCircular Size="Size.Small" Indeterminate="true" />
+                        <span class="ml-2">Procesando...</span>
+                    }
+                    else
+                    {
+                        <span>Realizar Compra</span>
+                    }
+                </MudButton>
+
+                <MudButton Variant="Variant.Text" FullWidth="true" Class="mt-2" Color="Color.Error"
+                           OnClick="@(() => CarritoService.LimpiarCarrito())">
+                    Vaciar Carrito
+                </MudButton>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    private List<ItemCarrito> _items = new();
+    private List<Usuario>? _usuarios;
+    private int? _usuarioSeleccionado = null;
+    private bool _procesando = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        CarritoService.OnChange += ActualizarCarrito;
+        _items = CarritoService.ObtenerItems();
+        await CargarUsuarios();
+    }
+
+    private async Task CargarUsuarios()
+    {
+        try
+        {
+            _usuarios = await UsuarioService.GetUsuariosAsync();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar usuarios: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private void ActualizarCarrito()
+    {
+        _items = CarritoService.ObtenerItems();
+        StateHasChanged();
+    }
+
+    private void EliminarItem(int productoId)
+    {
+        CarritoService.EliminarDelCarrito(productoId);
+        Snackbar.Add("Producto eliminado del carrito", Severity.Info);
+    }
+
+    private async Task RealizarCompra()
+    {
+        if (!_usuarioSeleccionado.HasValue)
+        {
+            Snackbar.Add("Debes seleccionar un cliente", Severity.Warning);
+            return;
+        }
+
+        _procesando = true;
+        try
+        {
+            var factura = new Factura
+            {
+                UsuarioId = _usuarioSeleccionado.Value,
+                Detalles = _items.Select(i => new DetalleFactura
+                {
+                    ProductoId = i.ProductoId,
+                    Cantidad = i.Cantidad,
+                    PrecioUnitario = i.PrecioUnitario
+                }).ToList()
+            };
+
+            await FacturaService.CreateFacturaAsync(factura);
+
+            Snackbar.Add("¡Compra realizada exitosamente!", Severity.Success);
+            CarritoService.LimpiarCarrito();
+
+            await Task.Delay(1500);
+            Navigation.NavigateTo("/facturas");
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al procesar la compra: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _procesando = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        CarritoService.OnChange -= ActualizarCarrito;
+    }
+}

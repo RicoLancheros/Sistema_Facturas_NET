@@ -1,0 +1,137 @@
+@page "/usuarios"
+@inject UsuarioService UsuarioService
+@inject ISnackbar Snackbar
+
+<PageTitle>Usuarios</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Gestión de Usuarios</MudText>
+
+<MudPaper Class="pa-4 my-4">
+    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="OpenCreateDialog" StartIcon="@Icons.Material.Filled.Add">
+        Nuevo Usuario
+    </MudButton>
+</MudPaper>
+
+@if (_loading)
+{
+    <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="my-4" />
+}
+else if (_usuarios == null || !_usuarios.Any())
+{
+    <MudAlert Severity="Severity.Info">No hay usuarios registrados</MudAlert>
+}
+else
+{
+    <MudTable Items="@_usuarios" Hover="true" Breakpoint="Breakpoint.Sm" LoadingProgressColor="Color.Info">
+        <HeaderContent>
+            <MudTh>ID</MudTh>
+            <MudTh>Nombre</MudTh>
+            <MudTh>Acciones</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="ID">@context.Id</MudTd>
+            <MudTd DataLabel="Nombre">@context.Nombre</MudTd>
+            <MudTd DataLabel="Acciones">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => OpenEditDialog(context))" Size="Size.Small" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteUsuario(context.Id))" Size="Size.Small" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+<MudDialog @bind-IsVisible="_dialogVisible">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_editingUsuario?.Id > 0 ? "Editar Usuario" : "Nuevo Usuario")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_editingUsuario.Nombre" Label="Nombre" Required="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog">Cancelar</MudButton>
+        <MudButton Color="Color.Primary" OnClick="SaveUsuario">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<Usuario>? _usuarios;
+    private bool _loading = true;
+    private bool _dialogVisible = false;
+    private Usuario _editingUsuario = new Usuario();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadUsuarios();
+    }
+
+    private async Task LoadUsuarios()
+    {
+        _loading = true;
+        try
+        {
+            _usuarios = await UsuarioService.GetUsuariosAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar usuarios: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OpenCreateDialog()
+    {
+        _editingUsuario = new Usuario();
+        _dialogVisible = true;
+    }
+
+    private void OpenEditDialog(Usuario usuario)
+    {
+        _editingUsuario = new Usuario { Id = usuario.Id, Nombre = usuario.Nombre };
+        _dialogVisible = true;
+    }
+
+    private void CloseDialog()
+    {
+        _dialogVisible = false;
+        _editingUsuario = new Usuario();
+    }
+
+    private async Task SaveUsuario()
+    {
+        try
+        {
+            if (_editingUsuario.Id > 0)
+            {
+                await UsuarioService.UpdateUsuarioAsync(_editingUsuario.Id, _editingUsuario);
+                Snackbar.Add("Usuario actualizado correctamente", Severity.Success);
+            }
+            else
+            {
+                await UsuarioService.CreateUsuarioAsync(_editingUsuario);
+                Snackbar.Add("Usuario creado correctamente", Severity.Success);
+            }
+            CloseDialog();
+            await LoadUsuarios();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al guardar usuario: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteUsuario(int id)
+    {
+        try
+        {
+            await UsuarioService.DeleteUsuarioAsync(id);
+            Snackbar.Add("Usuario eliminado correctamente", Severity.Success);
+            await LoadUsuarios();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al eliminar usuario: {ex.Message}", Severity.Error);
+        }
+    }
+}

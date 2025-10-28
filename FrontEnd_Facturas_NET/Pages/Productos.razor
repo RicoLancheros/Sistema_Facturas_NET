@@ -1,0 +1,144 @@
+@page "/productos"
+@inject ProductoService ProductoService
+@inject ISnackbar Snackbar
+
+<PageTitle>Productos</PageTitle>
+
+<MudText Typo="Typo.h3" GutterBottom="true">Gestión de Productos</MudText>
+
+<MudPaper Class="pa-4 my-4">
+    <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="OpenCreateDialog" StartIcon="@Icons.Material.Filled.Add">
+        Nuevo Producto
+    </MudButton>
+</MudPaper>
+
+@if (_loading)
+{
+    <MudProgressLinear Color="Color.Secondary" Indeterminate="true" Class="my-4" />
+}
+else if (_productos == null || !_productos.Any())
+{
+    <MudAlert Severity="Severity.Info">No hay productos registrados</MudAlert>
+}
+else
+{
+    <MudTable Items="@_productos" Hover="true" Breakpoint="Breakpoint.Sm" LoadingProgressColor="Color.Info">
+        <HeaderContent>
+            <MudTh>ID</MudTh>
+            <MudTh>Nombre</MudTh>
+            <MudTh>Cantidad</MudTh>
+            <MudTh>Acciones</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd DataLabel="ID">@context.Id</MudTd>
+            <MudTd DataLabel="Nombre">@context.Nombre</MudTd>
+            <MudTd DataLabel="Cantidad">
+                <MudChip T="string" Color="@(context.Cantidad > 10 ? Color.Success : context.Cantidad > 5 ? Color.Warning : Color.Error)">
+                    @context.Cantidad
+                </MudChip>
+            </MudTd>
+            <MudTd DataLabel="Acciones">
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Color="Color.Primary" OnClick="@(() => OpenEditDialog(context))" Size="Size.Small" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => DeleteProducto(context.Id))" Size="Size.Small" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+<MudDialog @bind-IsVisible="_dialogVisible">
+    <TitleContent>
+        <MudText Typo="Typo.h6">@(_editingProducto?.Id > 0 ? "Editar Producto" : "Nuevo Producto")</MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_editingProducto.Nombre" Label="Nombre" Required="true" Class="mb-4" />
+        <MudNumericField @bind-Value="_editingProducto.Cantidad" Label="Cantidad" Min="0" Required="true" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="CloseDialog">Cancelar</MudButton>
+        <MudButton Color="Color.Secondary" OnClick="SaveProducto">Guardar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<Producto>? _productos;
+    private bool _loading = true;
+    private bool _dialogVisible = false;
+    private Producto _editingProducto = new Producto();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadProductos();
+    }
+
+    private async Task LoadProductos()
+    {
+        _loading = true;
+        try
+        {
+            _productos = await ProductoService.GetProductosAsync();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al cargar productos: {ex.Message}", Severity.Error);
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void OpenCreateDialog()
+    {
+        _editingProducto = new Producto();
+        _dialogVisible = true;
+    }
+
+    private void OpenEditDialog(Producto producto)
+    {
+        _editingProducto = new Producto { Id = producto.Id, Nombre = producto.Nombre, Cantidad = producto.Cantidad };
+        _dialogVisible = true;
+    }
+
+    private void CloseDialog()
+    {
+        _dialogVisible = false;
+        _editingProducto = new Producto();
+    }
+
+    private async Task SaveProducto()
+    {
+        try
+        {
+            if (_editingProducto.Id > 0)
+            {
+                await ProductoService.UpdateProductoAsync(_editingProducto.Id, _editingProducto);
+                Snackbar.Add("Producto actualizado correctamente", Severity.Success);
+            }
+            else
+            {
+                await ProductoService.CreateProductoAsync(_editingProducto);
+                Snackbar.Add("Producto creado correctamente", Severity.Success);
+            }
+            CloseDialog();
+            await LoadProductos();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al guardar producto: {ex.Message}", Severity.Error);
+        }
+    }
+
+    private async Task DeleteProducto(int id)
+    {
+        try
+        {
+            await ProductoService.DeleteProductoAsync(id);
+            Snackbar.Add("Producto eliminado correctamente", Severity.Success);
+            await LoadProductos();
+        }
+        catch (Exception ex)
+        {
+            Snackbar.Add($"Error al eliminar producto: {ex.Message}", Severity.Error);
+        }
+    }
+}

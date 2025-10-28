@@ -1,0 +1,6 @@
+@BackEnd_Facturas_NET_HostAddress = http://localhost:5250
+
+GET {{BackEnd_Facturas_NET_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
